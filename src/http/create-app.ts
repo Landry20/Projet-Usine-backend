@@ -4,7 +4,6 @@ import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
-import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { HttpError } from '../common/http-error';
 import { extraireIp } from '../common/utils/numero.util';
@@ -72,7 +71,6 @@ export function creerAppHttp(ds: DataSource) {
   );
 
   app.use('/v1/fichiers', express.static(dossierUploads()));
-  app.use('/v1/fichiers', express.static(join(process.cwd(), 'uploads')));
 
   monterRoutes(app, ds);
 
