@@ -32,3 +32,19 @@ export function extraireIp(requete: { headers: Record<string, unknown>; ip?: str
 export function arrondirFcfa(valeur: number): number {
   return Math.round(valeur);
 }
+
+/** Numéro de lot MP unique du jour : LOT-MP-20260905-001 */
+export async function genererNumeroLotMp(ds: DataSource, date = new Date()): Promise<string> {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const prefixe = `LOT-MP-${y}${m}${d}-`;
+  const rows = (await ds.query(
+    `SELECT numero FROM lot_depot WHERE numero LIKE $1 ORDER BY numero DESC LIMIT 1`,
+    [`${prefixe}%`],
+  )) as Array<{ numero: string }>;
+  const dernier = rows[0]?.numero?.slice(-3);
+  const rang = Number(dernier);
+  const suivant = Number.isFinite(rang) ? rang + 1 : 1;
+  return `${prefixe}${String(suivant).padStart(3, '0')}`;
+}

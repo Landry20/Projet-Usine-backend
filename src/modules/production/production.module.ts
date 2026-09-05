@@ -8,6 +8,7 @@ import {
   StatutOf,
   TRANSITIONS_OF,
   TypeMouvement,
+  TypeMvtTank,
   TypeProduit,
 } from '../../common/constants/enums';
 import { paginer, PaginationDto } from '../../common/dto/pagination.dto';
@@ -24,7 +25,9 @@ import {
   NomenclatureLigne,
   OrdreFabrication,
   Produit,
+  Tank,
 } from '../../database/entities';
+import { appliquerMouvementTank } from '../quart/quart.module';
 
 class ProduitDto {
   @IsString() refProduit: string;
@@ -248,6 +251,29 @@ export class ProductionController {
       });
     }
     return this.ficheOf(id);
+  }
+
+  async remplirTank(id: number, dto: { tankId: number; volumeLitres: number }, user: { id: number }) {
+    if (!dto.tankId || !(dto.volumeLitres > 0)) {
+      throw new BadRequestException({ message: 'Indiquez le tank et un volume positif.' });
+    }
+    const of = await this.ofs.findOne({ where: { id }, relations: ['produit'] });
+    if (!of) throw new NotFoundException({ message: 'Ordre de fabrication introuvable.' });
+    if (![StatutOf.EN_COURS, StatutOf.CONTROLE].includes(of.statut)) {
+      throw new BadRequestException({ message: 'Le remplissage n’est possible que sur un OF en cours ou au contrôle.' });
+    }
+    const tank = await this.ds.getRepository(Tank).findOne({ where: { id: dto.tankId } });
+    if (!tank) throw new NotFoundException({ message: 'Tank introuvable.' });
+    await this.ds.transaction(async (m) => {
+      await appliquerMouvementTank(m, {
+        tankId: tank.id,
+        typeMvt: TypeMvtTank.ENTREE_PRODUCTION,
+        quantiteLitres: dto.volumeLitres,
+        utilisateurId: user.id,
+        motif: `Remplissage depuis ${of.numero}`,
+      });
+    });
+    return this.ds.getRepository(Tank).findOne({ where: { id: tank.id }, relations: ['produit'] });
   }
 
   async listerLots(q: PaginationDto & { statut?: StatutLot }) {

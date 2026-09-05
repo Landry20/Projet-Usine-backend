@@ -10,6 +10,7 @@ export type UtilisateurReq = {
   roleCode: string;
   permissions: string[];
   compartiments: string[];
+  siteId: number | null;
 };
 
 export function middlewareJwt(ds: DataSource) {
@@ -38,6 +39,7 @@ export function middlewareJwt(ds: DataSource) {
         roleCode: user.role?.code,
         permissions: (user.role?.permissions ?? []).map((p) => p.code),
         compartiments: compartimentsDuRole(user.role?.code) as unknown as string[],
+        siteId: user.siteId ?? null,
       };
       next();
     } catch {

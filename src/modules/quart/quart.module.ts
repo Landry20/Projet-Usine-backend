@@ -22,6 +22,8 @@ import {
   JournalQuart,
   JournalSortie,
   LigneProduction,
+  LotDepot,
+  MouvementLotDepot,
   Notification,
   Parametre,
   Produit,
@@ -35,6 +37,7 @@ class CreerDmDto {
   @IsNumber() @Min(0.01) quantiteDemandee: number;
   @IsOptional() @IsInt() ligneId?: number;
   @IsOptional() @IsIn(['A', 'B', 'C']) quart?: string;
+  @IsOptional() @IsInt() lotDepotId?: number;
 }
 
 class ServirDmDto {
@@ -96,6 +99,7 @@ export class QuartController {
       .leftJoinAndSelect('d.ligne', 'l')
       .leftJoinAndSelect('d.demandeur', 'u')
       .leftJoinAndSelect('d.magasinier', 'm')
+      .leftJoinAndSelect('d.lotDepot', 'lot')
       .orderBy('d.dateDemande', 'DESC')
       .skip((page - 1) * limite)
       .take(limite);
@@ -110,6 +114,18 @@ export class QuartController {
     if (produit.typeProduit !== TypeProduit.MATIERE_PREMIERE) {
       throw new BadRequestException({ message: 'Seule une matière première peut être demandée.' });
     }
+    let lotDepotId: number | null = dto.lotDepotId ?? null;
+    if (lotDepotId) {
+      const lot = await this.ds.getRepository(LotDepot).findOne({ where: { id: lotDepotId } });
+      if (!lot || lot.produitId !== produit.id) {
+        throw new BadRequestException({ message: 'Le lot demandé ne correspond pas à cette matière.' });
+      }
+      if (Number(lot.quantite) + 0.001 < dto.quantiteDemandee) {
+        throw new BadRequestException({
+          message: `Stock du lot ${lot.numero} insuffisant (dispo ${lot.quantite}).`,
+        });
+      }
+    }
     const numero = await genererNumero(this.ds, 'DM');
     return this.dms.save(
       this.dms.create({
@@ -118,6 +134,7 @@ export class QuartController {
         quantiteDemandee: dto.quantiteDemandee.toFixed(2),
         ligneId: dto.ligneId ?? null,
         quart: dto.quart ?? null,
+        lotDepotId,
         demandeurId: user.id,
         statut: StatutDemandeMatiere.DEMANDEE,
       }),
@@ -131,7 +148,7 @@ export class QuartController {
     user: UserCtx,
   ) {
     return this.ds.transaction(async (m) => {
-      const dm = await m.findOne(DemandeMatiere, { where: { id }, relations: ['produit'] });
+      const dm = await m.findOne(DemandeMatiere, { where: { id }, relations: ['produit', 'lotDepot'] });
       if (!dm) throw new NotFoundException({ message: 'Demande de matière introuvable.' });
       if (![StatutDemandeMatiere.DEMANDEE, StatutDemandeMatiere.PARTIELLE].includes(dm.statut)) {
         throw new BadRequestException({ message: 'Cette demande ne peut plus être servie.' });
@@ -152,6 +169,41 @@ export class QuartController {
           message: `Stock insuffisant pour ${p.refProduit} (dispo ${avant}, demandé ${dto.quantiteServie}).`,
         });
       }
+      const lot = dm.lotDepotId
+        ? await m.findOne(LotDepot, { where: { id: dm.lotDepotId }, lock: { mode: 'pessimistic_write' } })
+        : await m
+            .createQueryBuilder(LotDepot, 'l')
+            .setLock('pessimistic_write')
+            .where('l.produit_id = :pid AND l.actif = true AND l.quantite >= :q', {
+              pid: p.id,
+              q: dto.quantiteServie,
+            })
+            .orderBy('l.created_at', 'ASC')
+            .getOne();
+      if (lot) {
+        if (Number(lot.quantite) + 0.001 < dto.quantiteServie) {
+          throw new BadRequestException({
+            code: 'STOCK_LOT_INSUFFISANT',
+            message: `Stock du lot ${lot.numero} insuffisant (dispo ${lot.quantite}).`,
+          });
+        }
+        const apresLot = Number(lot.quantite) - dto.quantiteServie;
+        lot.quantite = apresLot.toFixed(3);
+        lot.etat = apresLot <= 0.001 ? 'EPUISE' : 'EN_TRANSFORMATION';
+        await m.save(lot);
+        await m.save(
+          m.create(MouvementLotDepot, {
+            lotDepotId: lot.id,
+            typeMvt: 'SORTIE',
+            quantite: dto.quantiteServie.toFixed(3),
+            depotSourceId: lot.depotId,
+            demandeMatiereId: dm.id,
+            motif: `Service ${dm.numero} → production`,
+            utilisateurId: user.id,
+          }),
+        );
+        dm.lotDepotId = lot.id;
+      }
       const apres = avant - dto.quantiteServie;
       p.quantiteStock = apres.toFixed(3);
       await m.save(p);
@@ -163,6 +215,7 @@ export class QuartController {
           quantite: dto.quantiteServie.toFixed(3),
           stockAvant: avant.toFixed(3),
           stockApres: apres.toFixed(3),
+          lotId: lot?.id ?? null,
           motif: `Service ${dm.numero}`,
           utilisateurId: user.id,
         }),
@@ -289,7 +342,7 @@ export class QuartController {
     if (produit.typeProduit === TypeProduit.PRODUIT_FINI && !dto.tankId) {
       throw new BadRequestException({ message: 'Une sortie de produit fini doit viser un tank.' });
     }
-    await this.sorties.save(
+    const sortie = await this.sorties.save(
       this.sorties.create({
         journalQuartId: j.id,
         produitId: dto.produitId,
@@ -297,8 +350,22 @@ export class QuartController {
         tankId: dto.tankId ?? null,
         destination: dto.destination ?? null,
         observation: dto.observation ?? null,
+        stockApplique: false,
       }),
     );
+    if (produit.typeProduit === TypeProduit.PRODUIT_FINI && dto.tankId) {
+      await this.ds.transaction(async (m) => {
+        await appliquerMouvementTank(m, {
+          tankId: dto.tankId!,
+          typeMvt: TypeMvtTank.ENTREE_PRODUCTION,
+          quantiteKg: dto.quantiteKg,
+          journalQuartId: j.id,
+          motif: `Remplissage tank depuis ${j.numero}`,
+        });
+        sortie.stockApplique = true;
+        await m.save(sortie);
+      });
+    }
     await this.recalculerBilan(j.id);
     return this.ficheJournal(j.id);
   }
@@ -314,7 +381,8 @@ export class QuartController {
     const equipementId = dto.equipementId ?? ligne?.equipementId ?? null;
     const seuil = Number((await this.lireParam('DUREE_ARRET_GENERANT_DI_MIN', '30')) || 30);
     let diId: number | null = null;
-    if (dto.dureeMin >= seuil && equipementId) {
+    const panneMeca = dto.typeArret === TypeArret.PANNE;
+    if (equipementId && (panneMeca || dto.dureeMin >= seuil)) {
       const eq = await this.ds.getRepository(Equipement).findOne({ where: { id: equipementId } });
       if (eq) {
         const numero = await genererNumero(this.ds, 'DI');
@@ -410,7 +478,7 @@ export class QuartController {
         throw new BadRequestException({ message: 'Séparation des tâches : le vérificateur ne peut pas approuver.' });
       }
       for (const s of j.sorties ?? []) {
-        if (s.produit?.typeProduit === TypeProduit.PRODUIT_FINI && s.tankId) {
+        if (s.produit?.typeProduit === TypeProduit.PRODUIT_FINI && s.tankId && !s.stockApplique) {
           await appliquerMouvementTank(m, {
             tankId: s.tankId,
             typeMvt: TypeMvtTank.ENTREE_PRODUCTION,

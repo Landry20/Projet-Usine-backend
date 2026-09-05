@@ -88,23 +88,34 @@ class ChargementDto {
 
 type UserCtx = { id: number; roleCode?: string };
 
-function volumeDepuisHauteur(bareme: { hauteurCm: number; litres: number }[] | null, h: number) {
-  if (!bareme?.length) {
-    throw new BadRequestException({ message: 'Aucun barème de jaugeage sur ce tank : saisissez le volume.' });
-  }
-  const pts = [...bareme].sort((a, b) => a.hauteurCm - b.hauteurCm);
-  if (h <= pts[0].hauteurCm) return pts[0].litres;
-  const last = pts[pts.length - 1];
-  if (h >= last.hauteurCm) return last.litres;
-  for (let i = 0; i < pts.length - 1; i += 1) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    if (h >= a.hauteurCm && h <= b.hauteurCm) {
-      const t = (h - a.hauteurCm) / (b.hauteurCm - a.hauteurCm);
-      return a.litres + t * (b.litres - a.litres);
+function nombre(valeur: unknown): number | null {
+  if (valeur == null || valeur === '') return null;
+  const n = Number(valeur);
+  return Number.isFinite(n) ? n : null;
+}
+
+function volumeDepuisHauteur(
+  bareme: { hauteurCm: number; litres: number }[] | null,
+  h: number,
+  capacite: number,
+) {
+  const pts = [...(bareme ?? [])].sort((a, b) => a.hauteurCm - b.hauteurCm);
+  if (pts.length >= 2) {
+    if (h <= pts[0].hauteurCm) return pts[0].litres;
+    const last = pts[pts.length - 1];
+    if (h >= last.hauteurCm) return last.litres;
+    for (let i = 0; i < pts.length - 1; i += 1) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      if (h >= a.hauteurCm && h <= b.hauteurCm) {
+        const t = (h - a.hauteurCm) / (b.hauteurCm - a.hauteurCm);
+        return a.litres + t * (b.litres - a.litres);
+      }
     }
+    return last.litres;
   }
-  return last.litres;
+  const hMax = pts[0]?.hauteurCm > 0 ? pts[0].hauteurCm : 400;
+  return Math.max(0, Math.min(capacite, (h / hMax) * capacite));
 }
 
 export class TanksController {
@@ -177,22 +188,41 @@ export class TanksController {
   ) {
     const tank = await this.tanks.findOne({ where: { id }, relations: ['produit'] });
     if (!tank) throw new NotFoundException({ message: 'Tank introuvable.' });
+    const hauteur = nombre(dto.hauteurCm);
+    const volumeSaisi = nombre(dto.volumeLitres);
+    const capacite = Number(tank.capaciteLitres) || 0;
     const volume =
-      dto.volumeLitres ??
-      (dto.hauteurCm != null ? volumeDepuisHauteur(tank.baremeJaugeage, dto.hauteurCm) : null);
+      volumeSaisi != null
+        ? volumeSaisi
+        : hauteur != null
+          ? volumeDepuisHauteur(tank.baremeJaugeage, hauteur, capacite)
+          : null;
     if (volume == null) {
-      throw new BadRequestException({ message: 'Indiquez une hauteur ou un volume.' });
+      throw new BadRequestException({ message: 'Indiquez une hauteur (cm) ou un volume (L).' });
     }
-    const densite = dto.densite ?? Number(tank.produit?.densiteReference ?? 0.91);
+    if (volume < 0) throw new BadRequestException({ message: 'Le volume ne peut pas être négatif.' });
+    if (capacite > 0 && volume > capacite + 0.001) {
+      throw new BadRequestException({
+        message: `Volume ${volume} L supérieur à la capacité du tank (${capacite} L).`,
+      });
+    }
+    if (!tank.baremeJaugeage?.length && capacite > 0) {
+      tank.baremeJaugeage = [
+        { hauteurCm: 0, litres: 0 },
+        { hauteurCm: 400, litres: capacite },
+      ];
+      await this.tanks.save(tank);
+    }
+    const densite = nombre(dto.densite) ?? Number(tank.produit?.densiteReference ?? 0.91);
     const theorique = Number(tank.stockLitres);
     const ecart = volume - theorique;
     const jauge = await this.jauges.save(
       this.jauges.create({
         tankId: id,
-        hauteurCm: dto.hauteurCm != null ? String(dto.hauteurCm) : null,
+        hauteurCm: hauteur != null ? String(hauteur) : null,
         volumeLitres: volume.toFixed(2),
         densite: densite.toFixed(4),
-        temperature: dto.temperature != null ? String(dto.temperature) : null,
+        temperature: nombre(dto.temperature) != null ? String(nombre(dto.temperature)) : null,
         masseKg: (volume * densite).toFixed(2),
         stockTheoriqueL: theorique.toFixed(2),
         ecartLitres: ecart.toFixed(2),
@@ -201,7 +231,7 @@ export class TanksController {
         observation: dto.observation ?? null,
       }),
     );
-    if (dto.ajusterStock) {
+    if (dto.ajusterStock && Math.abs(ecart) > 0.001) {
       await this.ds.transaction((m) =>
         appliquerMouvementTank(m, {
           tankId: id,

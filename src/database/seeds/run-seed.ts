@@ -43,6 +43,10 @@ const CATALOGUE_PERMISSIONS: { code: string; module: string; libelle: string }[]
   { code: PERMISSIONS.AUDIT_LIRE, module: 'admin', libelle: 'Consulter le journal d\'audit' },
   { code: PERMISSIONS.PRODUCTION_LIRE, module: 'production', libelle: 'Consulter la production' },
   { code: PERMISSIONS.PRODUCTION_GERER, module: 'production', libelle: 'Gérer nomenclatures et lignes' },
+  { code: PERMISSIONS.DEPOT_LIRE, module: 'depot', libelle: 'Consulter le dépôt MP' },
+  { code: PERMISSIONS.DEPOT_GERER, module: 'depot', libelle: 'Gérer réceptions et lots MP' },
+  { code: PERMISSIONS.ACHAT_CREER, module: 'direction', libelle: 'Créer une demande d’achat' },
+  { code: PERMISSIONS.ACHAT_VALIDER, module: 'direction', libelle: 'Valider une demande d’achat' },
   { code: PERMISSIONS.OF_CREER, module: 'production', libelle: 'Créer un ordre de fabrication' },
   { code: PERMISSIONS.OF_EXECUTER, module: 'production', libelle: 'Exécuter un OF' },
   { code: PERMISSIONS.OF_CLOTURER, module: 'production', libelle: 'Contrôler / clôturer un OF' },
@@ -137,6 +141,7 @@ const MATRICE: Record<string, string[]> = {
     PERMISSIONS.TANK_LIRE,
     PERMISSIONS.LABO_LIRE,
     PERMISSIONS.DIRECTION_LIRE,
+    PERMISSIONS.ACHAT_VALIDER,
   ],
   QHSE: [
     PERMISSIONS.EQUIPEMENT_LIRE,
@@ -198,8 +203,11 @@ const MATRICE: Record<string, string[]> = {
   ],
   MAGASIN_MP: [
     PERMISSIONS.PRODUCTION_LIRE,
+    PERMISSIONS.DEPOT_LIRE,
+    PERMISSIONS.DEPOT_GERER,
     PERMISSIONS.QUART_LIRE,
     PERMISSIONS.QUART_SAISIR,
+    PERMISSIONS.ACHAT_CREER,
     PERMISSIONS.KPI_LIRE,
   ],
   CHEF_QUART: [

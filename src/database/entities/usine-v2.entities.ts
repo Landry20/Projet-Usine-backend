@@ -23,7 +23,7 @@ import {
 } from '../../common/constants/enums';
 import { Equipement } from './equipements.entities';
 import { DemandeIntervention } from './interventions.entities';
-import { LigneProduction, Produit } from './production.entities';
+import { LigneProduction, LotDepot, Produit } from './production.entities';
 import { Site } from './ressources.entities';
 import { Utilisateur } from './securite.entities';
 
@@ -184,6 +184,13 @@ export class DemandeMatiere {
   @ManyToOne(() => JournalQuart, { nullable: true })
   @JoinColumn({ name: 'journal_quart_id' })
   journalQuart: JournalQuart | null;
+
+  @Column({ type: 'int', name: 'lot_depot_id', nullable: true })
+  lotDepotId: number | null;
+
+  @ManyToOne(() => LotDepot, { nullable: true })
+  @JoinColumn({ name: 'lot_depot_id' })
+  lotDepot: LotDepot | null;
 }
 
 @Entity({ name: 'journal_entree' })
@@ -256,6 +263,9 @@ export class JournalSortie {
 
   @Column({ type: 'text', nullable: true })
   observation: string | null;
+
+  @Column({ type: 'boolean', name: 'stock_applique', default: false })
+  stockApplique: boolean;
 }
 
 @Entity({ name: 'journal_arret' })
@@ -362,7 +372,7 @@ export class TankMouvement {
   @JoinColumn({ name: 'tank_id' })
   tank: Tank;
 
-  @Column({ type: 'enum', enum: TypeMvtTank, name: 'type_mvt' })
+  @Column({ type: 'varchar', length: 40, name: 'type_mvt' })
   typeMvt: TypeMvtTank;
 
   @Column({ type: 'decimal', precision: 14, scale: 2, name: 'quantite_litres' })

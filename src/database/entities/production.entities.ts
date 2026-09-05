@@ -12,7 +12,34 @@ import {
 import { StatutLot, StatutOf, TypeMouvement, TypeProduit } from '../../common/constants/enums';
 import { Equipement } from './equipements.entities';
 import { Site } from './ressources.entities';
+import { Fournisseur } from './stock.entities';
 import { Utilisateur } from './securite.entities';
+
+/** Zone de stockage MP (Dépôt A, Magasin central, Zone brute…). */
+@Entity({ name: 'depot' })
+export class Depot {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 20, unique: true })
+  code: string;
+
+  @Column({ type: 'varchar', length: 150 })
+  libelle: string;
+
+  @Column({ type: 'varchar', length: 30, default: 'STOCKAGE' })
+  type: string;
+
+  @Column({ type: 'int', name: 'site_id', nullable: true })
+  siteId: number | null;
+
+  @ManyToOne(() => Site, { nullable: true })
+  @JoinColumn({ name: 'site_id' })
+  site: Site | null;
+
+  @Column({ type: 'boolean', default: true })
+  actif: boolean;
+}
 
 /** Ligne / atelier de fabrication — reliée aux machines (pont Production ↔ Maintenance). */
 @Entity({ name: 'ligne_production' })
@@ -289,7 +316,7 @@ export class MouvementProduit {
   dateMvt: Date;
 }
 
-/** Emplacement de stockage MP dans le dépôt. */
+/** Lot de matière première (créé à la réception, affecté à un dépôt). */
 @Entity({ name: 'lot_depot' })
 export class LotDepot {
   @PrimaryGeneratedColumn()
@@ -308,11 +335,28 @@ export class LotDepot {
   @JoinColumn({ name: 'produit_id' })
   produit: Produit;
 
+  @Column({ type: 'int', name: 'depot_id', nullable: true })
+  depotId: number | null;
+
+  @ManyToOne(() => Depot, { nullable: true })
+  @JoinColumn({ name: 'depot_id' })
+  depot: Depot | null;
+
+  @Column({ type: 'int', name: 'site_id', nullable: true })
+  siteId: number | null;
+
+  @ManyToOne(() => Site, { nullable: true })
+  @JoinColumn({ name: 'site_id' })
+  site: Site | null;
+
   @Column({ type: 'decimal', precision: 14, scale: 3, nullable: true })
   capacite: string | null;
 
   @Column({ type: 'decimal', precision: 14, scale: 3, default: 0 })
   quantite: string;
+
+  @Column({ type: 'varchar', length: 30, default: 'EN_STOCK' })
+  etat: string;
 
   @Column({ type: 'varchar', length: 80, nullable: true })
   emplacement: string | null;
@@ -324,7 +368,7 @@ export class LotDepot {
   createdAt: Date;
 }
 
-/** Réception de matière première dans un lot du dépôt. */
+/** Réception camion : crée ou alimente un lot MP. */
 @Entity({ name: 'arrivage_matiere' })
 export class ArrivageMatiere {
   @PrimaryGeneratedColumn()
@@ -347,6 +391,32 @@ export class ArrivageMatiere {
   @JoinColumn({ name: 'produit_id' })
   produit: Produit;
 
+  @Column({ type: 'int', name: 'depot_id', nullable: true })
+  depotId: number | null;
+
+  @ManyToOne(() => Depot, { nullable: true })
+  @JoinColumn({ name: 'depot_id' })
+  depot: Depot | null;
+
+  @Column({ type: 'int', name: 'fournisseur_id', nullable: true })
+  fournisseurId: number | null;
+
+  @ManyToOne(() => Fournisseur, { nullable: true })
+  @JoinColumn({ name: 'fournisseur_id' })
+  fournisseur: Fournisseur | null;
+
+  @Column({ type: 'varchar', length: 150, name: 'fournisseur_nom', nullable: true })
+  fournisseurNom: string | null;
+
+  @Column({ type: 'varchar', length: 40, name: 'numero_camion', nullable: true })
+  numeroCamion: string | null;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3, name: 'poids_brut', nullable: true })
+  poidsBrut: string | null;
+
+  @Column({ type: 'date', name: 'date_reception', nullable: true })
+  dateReception: string | null;
+
   @Column({ type: 'decimal', precision: 14, scale: 3 })
   quantite: string;
 
@@ -365,4 +435,98 @@ export class ArrivageMatiere {
 
   @CreateDateColumn({ name: 'date_arrivage' })
   dateArrivage: Date;
+}
+
+@Entity({ name: 'mouvement_lot_depot' })
+export class MouvementLotDepot {
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
+
+  @Column({ type: 'int', name: 'lot_depot_id' })
+  lotDepotId: number;
+
+  @ManyToOne(() => LotDepot)
+  @JoinColumn({ name: 'lot_depot_id' })
+  lotDepot: LotDepot;
+
+  @Column({ type: 'varchar', length: 20, name: 'type_mvt' })
+  typeMvt: string;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3 })
+  quantite: string;
+
+  @Column({ type: 'int', name: 'depot_source_id', nullable: true })
+  depotSourceId: number | null;
+
+  @Column({ type: 'int', name: 'depot_dest_id', nullable: true })
+  depotDestId: number | null;
+
+  @Column({ type: 'int', name: 'demande_matiere_id', nullable: true })
+  demandeMatiereId: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  motif: string | null;
+
+  @Column({ type: 'int', name: 'utilisateur_id', nullable: true })
+  utilisateurId: number | null;
+
+  @ManyToOne(() => Utilisateur, { nullable: true })
+  @JoinColumn({ name: 'utilisateur_id' })
+  utilisateur: Utilisateur | null;
+
+  @CreateDateColumn({ name: 'date_mvt' })
+  dateMvt: Date;
+}
+
+@Entity({ name: 'demande_achat' })
+export class DemandeAchat {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 30, unique: true })
+  numero: string;
+
+  @Column({ type: 'varchar', length: 20, default: 'MP' })
+  type: string;
+
+  @Column({ type: 'varchar', length: 20, default: 'EN_ATTENTE' })
+  statut: string;
+
+  @Column({ type: 'varchar', length: 200 })
+  libelle: string;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3, nullable: true })
+  quantite: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  motif: string | null;
+
+  @Column({ type: 'text', name: 'motif_rejet', nullable: true })
+  motifRejet: string | null;
+
+  @Column({ type: 'int', name: 'site_id', nullable: true })
+  siteId: number | null;
+
+  @Column({ type: 'int', name: 'produit_id', nullable: true })
+  produitId: number | null;
+
+  @ManyToOne(() => Produit, { nullable: true })
+  @JoinColumn({ name: 'produit_id' })
+  produit: Produit | null;
+
+  @Column({ type: 'int', name: 'demandeur_id', nullable: true })
+  demandeurId: number | null;
+
+  @ManyToOne(() => Utilisateur, { nullable: true })
+  @JoinColumn({ name: 'demandeur_id' })
+  demandeur: Utilisateur | null;
+
+  @Column({ type: 'int', name: 'valideur_id', nullable: true })
+  valideurId: number | null;
+
+  @Column({ type: 'timestamptz', name: 'date_decision', nullable: true })
+  dateDecision: Date | null;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 }

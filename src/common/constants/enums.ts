@@ -118,8 +118,9 @@ export enum CodeRole {
   DIRECTION_GENERALE = 'DIRECTION_GENERALE',
 }
 
-/** Quatre domaines métier + pilotage direction (Dossier architecture V2.0). */
+/** Six compartiments métier + pilotage direction. */
 export enum Compartiment {
+  DEPOT = 'DEPOT',
   PRODUCTION = 'PRODUCTION',
   PRODUITS_FINIS = 'PRODUITS_FINIS',
   LABORATOIRE = 'LABORATOIRE',
@@ -249,6 +250,7 @@ export const TRANSITIONS_OF: Record<StatutOf, StatutOf[]> = {
 };
 
 const TOUS_COMPARTIMENTS = [
+  Compartiment.DEPOT,
   Compartiment.PRODUCTION,
   Compartiment.PRODUITS_FINIS,
   Compartiment.LABORATOIRE,
@@ -264,10 +266,11 @@ export function compartimentsDuRole(code?: string): Compartiment[] {
     case CodeRole.DIRECTION_GENERALE:
     case CodeRole.CHEF_USINE:
       return TOUS_COMPARTIMENTS;
+    case CodeRole.MAGASIN_MP:
+      return [Compartiment.DEPOT];
     case CodeRole.RESP_PROD:
     case CodeRole.OPERATEUR:
     case CodeRole.CHEF_QUART:
-    case CodeRole.MAGASIN_MP:
       return [Compartiment.PRODUCTION];
     case CodeRole.QUALITE:
     case CodeRole.RESP_QUALITE:
@@ -315,6 +318,10 @@ export const PERMISSIONS = {
   AUDIT_LIRE: 'audit.lire',
   PRODUCTION_LIRE: 'production.lire',
   PRODUCTION_GERER: 'production.gerer',
+  DEPOT_LIRE: 'depot.lire',
+  DEPOT_GERER: 'depot.gerer',
+  ACHAT_CREER: 'achat.creer',
+  ACHAT_VALIDER: 'achat.valider',
   OF_CREER: 'of.creer',
   OF_EXECUTER: 'of.executer',
   OF_CLOTURER: 'of.cloturer',
