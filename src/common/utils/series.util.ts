@@ -36,13 +36,13 @@ export async function serieAnneeSurAnnee<T extends ObjectLiteral>(
   async function pour(annee: number) {
     const qb = repo
       .createQueryBuilder(alias)
-      .select(`MONTH(${alias}.${colonneDate})`, 'm')
+      .select(`EXTRACT(MONTH FROM ${alias}.${colonneDate})`, 'm')
       .addSelect('COUNT(*)', 'n');
     if (colonneVolume) {
       const expr = /[\s(+]/.test(colonneVolume) ? colonneVolume : `${alias}.${colonneVolume}`;
       qb.addSelect(`COALESCE(SUM(${expr}), 0)`, 'v');
     }
-    qb.where(`YEAR(${alias}.${colonneDate}) = :y`, { y: annee }).groupBy('m');
+    qb.where(`EXTRACT(YEAR FROM ${alias}.${colonneDate}) = :y`, { y: annee }).groupBy('m');
     const rows = await qb.getRawMany<{ m: string; n: string; v?: string }>();
     const counts: Record<number, number> = {};
     const volumes: Record<number, number> = {};

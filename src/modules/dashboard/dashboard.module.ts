@@ -35,7 +35,7 @@ export class DashboardController {
       this.dis.count({ where: { statut: StatutDi.NOUVELLE } }),
       this.articles
         .createQueryBuilder('a')
-        .where('a.actif = 1 AND a.quantiteStock <= a.seuilReappro')
+        .where('a.actif = true AND a.quantiteStock <= a.seuilReappro')
         .getCount(),
       this.dpieces.count({ where: { statut: StatutDemandePiece.EN_ATTENTE } }),
       this.equipements.count(),
@@ -68,7 +68,7 @@ export class DashboardController {
     const valeurStockRaw = await this.articles
       .createQueryBuilder('a')
       .select('SUM(a.quantiteStock * a.prixUnitaireMoyen)', 'valeur')
-      .where('a.actif = 1')
+      .where('a.actif = true')
       .getRawOne<{ valeur: string }>();
 
     const heuresArret = clotures.reduce((s, o) => s + Number(o.dureeArretH || 0), 0);

@@ -68,7 +68,7 @@ export class StockController {
     if (q.recherche) {
       qb.andWhere('(a.refArticle LIKE :r OR a.designation LIKE :r)', { r: `%${q.recherche}%` });
     }
-    if (q.critique === '1') qb.andWhere('a.pieceCritique = 1');
+    if (q.critique === '1') qb.andWhere('a.pieceCritique = true');
     const [donnees, total] = await qb.getManyAndCount();
     return paginer(donnees, total, page, limite);
   }
@@ -76,7 +76,7 @@ export class StockController {
   critiques() {
     return this.articles
       .createQueryBuilder('a')
-      .where('a.actif = 1')
+      .where('a.actif = true')
       .andWhere('a.quantiteStock <= a.seuilReappro')
       .orderBy('a.pieceCritique', 'DESC')
       .getMany();
@@ -282,7 +282,7 @@ export class StockController {
       .createQueryBuilder('u')
       .leftJoin('u.role', 'r')
       .where('r.code IN (:...codes)', { codes: ['MAGASIN', 'RESP_MAINT'] })
-      .andWhere('u.actif = 1')
+      .andWhere('u.actif = true')
       .getMany();
     for (const d of destinataires) {
       await this.notifs.save(
