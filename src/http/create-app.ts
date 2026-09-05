@@ -47,13 +47,22 @@ export function creerAppHttp(ds: DataSource) {
     next();
   });
 
-  const origines = (process.env.FRONTEND_URL ?? 'http://localhost:5173')
-    .split(',')
+  const origines = [
+    'http://localhost:5173',
+    'https://projet-usine.vercel.app',
+    ...(process.env.FRONTEND_URL ?? '').split(','),
+  ]
     .map((s) => s.trim())
     .filter(Boolean);
   app.use(
     cors({
-      origin: origines,
+      origin(origin, cb) {
+        if (!origin || origines.includes(origin) || /^https:\/\/projet-usine[\w-]*\.vercel\.app$/.test(origin)) {
+          cb(null, true);
+          return;
+        }
+        cb(null, false);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
