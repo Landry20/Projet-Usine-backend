@@ -68,7 +68,8 @@ export function monterRoutes(app: Express, ds: DataSource) {
   );
   const prod = new ProductionController(
     r(E.Produit), r(E.LigneProduction), r(E.Nomenclature), r(E.NomenclatureLigne),
-    r(E.OrdreFabrication), r(E.LotProduit), r(E.MouvementProduit), r(E.Equipement), ds,
+    r(E.OrdreFabrication), r(E.LotProduit), r(E.MouvementProduit), r(E.Equipement),
+    r(E.LotDepot), r(E.ArrivageMatiere), ds,
   );
   const tanks = new TanksController(
     r(E.Tank), r(E.TankMouvement), r(E.Jaugeage), r(E.Client), r(E.CommandeClient),
@@ -198,6 +199,10 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.get('/mouvements-produits', jwt, asyncRoute((req) => prod.mvtsListe(req.query as never)));
   api.get('/dashboard/production', jwt, asyncRoute(() => prod.dashProd()));
   api.get('/dashboard/produits-finis', jwt, asyncRoute(() => prod.dashPf()));
+  api.get('/lots-depot', jwt, exigerPermissions(P.PRODUCTION_LIRE), asyncRoute(() => prod.listerLotsDepot()));
+  api.post('/lots-depot', jwt, exigerPermissions(P.PRODUCTION_GERER), asyncRoute((req) => prod.creerLotDepot(req.body)));
+  api.get('/arrivages', jwt, exigerPermissions(P.PRODUCTION_LIRE), asyncRoute(() => prod.listerArrivages()));
+  api.post('/arrivages', jwt, exigerPermissions(P.PRODUCTION_GERER), asyncRoute((req) => prod.enregistrerArrivage(req.body, u(req))));
 
   api.get('/tanks', jwt, exigerUnePermission(P.TANK_LIRE, P.QUART_LIRE), asyncRoute(() => tanks.lister()));
   api.get('/tanks/:id', jwt, asyncRoute((req) => tanks.fiche(id(req))));

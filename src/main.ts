@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { buildTypeOrmOptions } from './database/database.config';
 import * as entities from './database/entities';
+import { assurerSchemaDepot } from './database/assurer-schema-depot';
 import { creerAppHttp } from './http/create-app';
 
 const ENTITES = Object.values(entities).filter((v) => typeof v === 'function') as Function[];
@@ -9,6 +10,7 @@ const ENTITES = Object.values(entities).filter((v) => typeof v === 'function') a
 async function demarrer() {
   const ds = new DataSource({ ...buildTypeOrmOptions(process.env, ENTITES), synchronize: process.env.DB_SYNC === 'true' });
   await ds.initialize();
+  await assurerSchemaDepot(ds);
   const app = creerAppHttp(ds);
   const port = Number(process.env.PORT ?? 4000);
   app.listen(port, () => {

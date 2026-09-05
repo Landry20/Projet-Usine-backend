@@ -288,3 +288,81 @@ export class MouvementProduit {
   @CreateDateColumn({ name: 'date_mvt' })
   dateMvt: Date;
 }
+
+/** Emplacement de stockage MP dans le dépôt. */
+@Entity({ name: 'lot_depot' })
+export class LotDepot {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 30, unique: true })
+  numero: string;
+
+  @Column({ type: 'varchar', length: 150 })
+  libelle: string;
+
+  @Column({ type: 'int', name: 'produit_id' })
+  produitId: number;
+
+  @ManyToOne(() => Produit)
+  @JoinColumn({ name: 'produit_id' })
+  produit: Produit;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3, nullable: true })
+  capacite: string | null;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3, default: 0 })
+  quantite: string;
+
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  emplacement: string | null;
+
+  @Column({ type: 'boolean', default: true })
+  actif: boolean;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+}
+
+/** Réception de matière première dans un lot du dépôt. */
+@Entity({ name: 'arrivage_matiere' })
+export class ArrivageMatiere {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 30, unique: true })
+  numero: string;
+
+  @Column({ type: 'int', name: 'lot_depot_id' })
+  lotDepotId: number;
+
+  @ManyToOne(() => LotDepot)
+  @JoinColumn({ name: 'lot_depot_id' })
+  lotDepot: LotDepot;
+
+  @Column({ type: 'int', name: 'produit_id' })
+  produitId: number;
+
+  @ManyToOne(() => Produit)
+  @JoinColumn({ name: 'produit_id' })
+  produit: Produit;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3 })
+  quantite: string;
+
+  @Column({ type: 'varchar', length: 80, name: 'reference_bl', nullable: true })
+  referenceBl: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  commentaire: string | null;
+
+  @Column({ type: 'int', name: 'utilisateur_id', nullable: true })
+  utilisateurId: number | null;
+
+  @ManyToOne(() => Utilisateur, { nullable: true })
+  @JoinColumn({ name: 'utilisateur_id' })
+  utilisateur: Utilisateur | null;
+
+  @CreateDateColumn({ name: 'date_arrivage' })
+  dateArrivage: Date;
+}

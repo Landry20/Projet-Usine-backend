@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { DataSource } from 'typeorm';
 import { buildTypeOrmOptions } from './database/database.config';
 import * as entities from './database/entities';
+import { assurerSchemaDepot } from './database/assurer-schema-depot';
 import { creerAppHttp } from './http/create-app';
 
 const ENTITES = Object.values(entities).filter((v) => typeof v === 'function') as Function[];
@@ -22,6 +23,7 @@ async function getApp() {
       synchronize: false,
     });
     await ds.initialize();
+    await assurerSchemaDepot(ds);
   }
   cached = creerAppHttp(ds);
   return cached;

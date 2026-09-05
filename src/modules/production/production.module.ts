@@ -14,8 +14,10 @@ import { paginer, PaginationDto } from '../../common/dto/pagination.dto';
 import { genererNumero } from '../../common/utils/numero.util';
 import { serieAnneeSurAnnee } from '../../common/utils/series.util';
 import {
+  ArrivageMatiere,
   Equipement,
   LigneProduction,
+  LotDepot,
   LotProduit,
   MouvementProduit,
   Nomenclature,
@@ -47,6 +49,20 @@ class ControleDto {
   @IsOptional() @IsString() emplacement?: string;
 }
 
+class LotDepotDto {
+  @IsString() libelle: string;
+  @IsInt() produitId: number;
+  @IsOptional() @IsNumber() capacite?: number;
+  @IsOptional() @IsString() emplacement?: string;
+}
+
+class ArrivageDto {
+  @IsInt() lotDepotId: number;
+  @IsNumber() @Min(0.001) quantite: number;
+  @IsOptional() @IsString() referenceBl?: string;
+  @IsOptional() @IsString() commentaire?: string;
+}
+
 export class ProductionController {
   constructor(
     private readonly produits: Repository<Produit>,
@@ -57,6 +73,8 @@ export class ProductionController {
     private readonly lots: Repository<LotProduit>,
     private readonly mvts: Repository<MouvementProduit>,
     private readonly equipements: Repository<Equipement>,
+    private readonly lotsDepot: Repository<LotDepot>,
+    private readonly arrivages: Repository<ArrivageMatiere>,
     private readonly ds: DataSource,
   ) {}
 
@@ -351,6 +369,89 @@ export class ProductionController {
           utilisateurId,
         }),
       );
+    });
+  }
+
+  async listerLotsDepot() {
+    return this.lotsDepot.find({
+      relations: ['produit'],
+      order: { numero: 'ASC' },
+    });
+  }
+
+  async creerLotDepot(dto: LotDepotDto) {
+    const produit = await this.produits.findOne({ where: { id: dto.produitId } });
+    if (!produit || produit.typeProduit !== TypeProduit.MATIERE_PREMIERE) {
+      throw new BadRequestException({ message: 'Choisissez une matière première.' });
+    }
+    const numero = await genererNumero(this.ds, 'DEP');
+    return this.lotsDepot.save(
+      this.lotsDepot.create({
+        numero,
+        libelle: dto.libelle.trim(),
+        produitId: produit.id,
+        capacite: dto.capacite != null ? String(dto.capacite) : null,
+        quantite: '0',
+        emplacement: dto.emplacement?.trim() || null,
+        actif: true,
+      }),
+    );
+  }
+
+  async listerArrivages() {
+    return this.arrivages.find({
+      relations: ['lotDepot', 'produit', 'utilisateur'],
+      order: { dateArrivage: 'DESC' },
+      take: 100,
+    });
+  }
+
+  async enregistrerArrivage(dto: ArrivageDto, user: { id: number }) {
+    if (dto.quantite <= 0) throw new BadRequestException({ message: 'La quantité doit être positive.' });
+    const numero = await genererNumero(this.ds, 'ARR');
+    return this.ds.transaction(async (m) => {
+      const lot = await m.findOne(LotDepot, { where: { id: dto.lotDepotId }, relations: ['produit'] });
+      if (!lot || !lot.actif) throw new NotFoundException({ message: 'Lot de dépôt introuvable.' });
+      const capacite = lot.capacite != null ? Number(lot.capacite) : null;
+      const apresLot = Number(lot.quantite) + dto.quantite;
+      if (capacite != null && apresLot > capacite) {
+        throw new BadRequestException({
+          message: `Capacité du lot ${lot.numero} dépassée (max ${capacite}, après arrivage ${apresLot}).`,
+        });
+      }
+      const produit = await m.findOne(Produit, { where: { id: lot.produitId } });
+      if (!produit) throw new NotFoundException({ message: 'Matière première introuvable.' });
+      const avant = Number(produit.quantiteStock);
+      const apres = avant + dto.quantite;
+      lot.quantite = apresLot.toFixed(3);
+      produit.quantiteStock = apres.toFixed(3);
+      await m.save(lot);
+      await m.save(produit);
+      const arrivage = await m.save(
+        m.create(ArrivageMatiere, {
+          numero,
+          lotDepotId: lot.id,
+          produitId: produit.id,
+          quantite: String(dto.quantite),
+          referenceBl: dto.referenceBl?.trim() || null,
+          commentaire: dto.commentaire?.trim() || null,
+          utilisateurId: user.id,
+        }),
+      );
+      await m.save(
+        m.create(MouvementProduit, {
+          produitId: produit.id,
+          typeStock: TypeProduit.MATIERE_PREMIERE,
+          typeMvt: TypeMouvement.ENTREE,
+          quantite: String(dto.quantite),
+          stockAvant: avant.toFixed(3),
+          stockApres: apres.toFixed(3),
+          lotId: lot.id,
+          motif: `Arrivage ${numero} → lot ${lot.numero}`,
+          utilisateurId: user.id,
+        }),
+      );
+      return arrivage;
     });
   }
 }
