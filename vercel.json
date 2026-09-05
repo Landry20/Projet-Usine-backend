@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "buildCommand": "npm install --include=dev && npm run build",
+  "buildCommand": "npm run build",
   "installCommand": "npm install --include=dev",
+  "outputDirectory": "public",
   "framework": null,
   "functions": {
     "api/index.js": {
