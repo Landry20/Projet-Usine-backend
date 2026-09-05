@@ -10,6 +10,10 @@ const ENTITES = Object.values(entities).filter((v) => typeof v === 'function') a
 let cached: ReturnType<typeof creerAppHttp> | undefined;
 let ds: DataSource | undefined;
 
+function chemin(req: Request) {
+  return String(req.url ?? '/').split('?')[0];
+}
+
 async function getApp() {
   if (cached) return cached;
   if (!ds) {
@@ -24,6 +28,21 @@ async function getApp() {
 }
 
 export default async function handler(req: Request, res: Response): Promise<void> {
-  const app = await getApp();
-  app(req, res);
+  if (chemin(req) === '/v1/sante') {
+    res.status(200).json({ ok: true, nom: 'ManuPro' });
+    return;
+  }
+  try {
+    const app = await getApp();
+    app(req, res);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : 'Erreur serveur.';
+    if (!res.headersSent) {
+      res.status(503).json({
+        ok: false,
+        message: 'API indisponible. Vérifiez DATABASE_URL et les variables Vercel.',
+        detail,
+      });
+    }
+  }
 }
