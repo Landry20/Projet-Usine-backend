@@ -132,7 +132,7 @@ export class TanksController {
   ) {}
 
   async lister() {
-    const liste = await this.tanks.find({ relations: ['produit', 'site'], order: { code: 'ASC' } });
+    const liste = await this.tanks.find({ where: { actif: true }, relations: ['produit', 'site'], order: { code: 'ASC' } });
     return liste.map((t) => {
       const capa = Number(t.capaciteLitres) || 1;
       const remplissage = Math.round((Number(t.stockLitres) / capa) * 1000) / 10;
@@ -159,17 +159,45 @@ export class TanksController {
       this.tanks.create({
         code: dto.code.toUpperCase(),
         libelle: dto.libelle ?? null,
-        capaciteLitres: dto.capaciteLitres.toFixed(2),
+        capaciteLitres: Number(dto.capaciteLitres).toFixed(2),
         produitId: dto.produitId ?? null,
         siteId: dto.siteId ?? null,
         seuilHautPct: dto.seuilHautPct ?? 90,
         seuilBasPct: dto.seuilBasPct ?? 10,
         baremeJaugeage: [
           { hauteurCm: 0, litres: 0 },
-          { hauteurCm: 400, litres: dto.capaciteLitres },
+          { hauteurCm: 400, litres: Number(dto.capaciteLitres) },
         ],
+        actif: true,
       }),
     );
+  }
+
+  async modifier(id: number, dto: Partial<TankDto>) {
+    const tank = await this.tanks.findOne({ where: { id } });
+    if (!tank || !tank.actif) throw new NotFoundException({ message: 'Tank introuvable.' });
+    if (dto.code) tank.code = dto.code.toUpperCase();
+    if (dto.libelle !== undefined) tank.libelle = dto.libelle?.trim() || null;
+    if (dto.produitId !== undefined) tank.produitId = dto.produitId ?? null;
+    if (dto.siteId !== undefined) tank.siteId = dto.siteId ?? null;
+    if (dto.seuilHautPct != null) tank.seuilHautPct = dto.seuilHautPct;
+    if (dto.seuilBasPct != null) tank.seuilBasPct = dto.seuilBasPct;
+    if (dto.capaciteLitres != null) {
+      tank.capaciteLitres = Number(dto.capaciteLitres).toFixed(2);
+      tank.baremeJaugeage = [
+        { hauteurCm: 0, litres: 0 },
+        { hauteurCm: 400, litres: Number(dto.capaciteLitres) },
+      ];
+    }
+    return this.tanks.save(tank);
+  }
+
+  async supprimer(id: number) {
+    const tank = await this.tanks.findOne({ where: { id } });
+    if (!tank) throw new NotFoundException({ message: 'Tank introuvable.' });
+    tank.actif = false;
+    await this.tanks.save(tank);
+    return { ok: true };
   }
 
   mouvements(id: number, q: PaginationDto) {

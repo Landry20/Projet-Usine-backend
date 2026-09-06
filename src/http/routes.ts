@@ -228,6 +228,8 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.get('/tanks', jwt, exigerUnePermission(P.TANK_LIRE, P.QUART_LIRE), asyncRoute(() => tanks.lister()));
   api.get('/tanks/:id', jwt, asyncRoute((req) => tanks.fiche(id(req))));
   api.post('/tanks', jwt, asyncRoute((req) => tanks.creer(req.body)));
+  api.patch('/tanks/:id', jwt, asyncRoute((req) => tanks.modifier(id(req), req.body)));
+  api.delete('/tanks/:id', jwt, asyncRoute((req) => tanks.supprimer(id(req))));
   api.get('/tanks/:id/mouvements', jwt, asyncRoute((req) => tanks.mouvements(id(req), req.query as never)));
   api.post('/tanks/:id/jaugeages', jwt, asyncRoute((req) => (tanks.jauger as Function)(id(req), req.body, u(req))));
   api.get('/clients', jwt, asyncRoute(() => tanks.listerClients()));
