@@ -2,6 +2,7 @@ import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { BadRequestException, NotFoundException } from '../../common/http-error';
 import { TypeMouvement, TypeProduit } from '../../common/constants/enums';
+import { envoyerEmail } from '../../common/utils/email.util';
 import { genererNumero, genererNumeroLotMp } from '../../common/utils/numero.util';
 import {
   ArrivageMatiere,
@@ -20,6 +21,11 @@ class DepotDto {
   @IsString() libelle: string;
   @IsOptional() @IsString() type?: string;
   @IsOptional() @IsInt() siteId?: number;
+  @IsOptional() @IsInt() @Min(1) capaciteMaxLots?: number;
+}
+
+class CommanderDto {
+  @IsInt() fournisseurId: number;
 }
 
 class ReceptionDto {
@@ -58,24 +64,96 @@ export class DepotController {
     private readonly ds: DataSource,
   ) {}
 
+  async compterLots(depotId: number) {
+    return this.lots.count({ where: { depotId, actif: true } });
+  }
+
+  async enrichirDepot(d: Depot) {
+    const nbLotsOccupes = await this.compterLots(d.id);
+    return {
+      ...d,
+      nbLotsOccupes,
+      nbPalettes: nbLotsOccupes,
+      placesLibres:
+        d.capaciteMaxLots != null ? Math.max(0, d.capaciteMaxLots - nbLotsOccupes) : null,
+    };
+  }
+
   async listerDepots(siteId?: number | null) {
-    const qb = this.depots.createQueryBuilder('d').leftJoinAndSelect('d.site', 's').orderBy('d.libelle', 'ASC');
+    const qb = this.depots
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.site', 's')
+      .where('d.actif = TRUE')
+      .orderBy('d.libelle', 'ASC');
     if (siteId) qb.andWhere('(d.siteId IS NULL OR d.siteId = :siteId)', { siteId });
-    return qb.getMany();
+    const liste = await qb.getMany();
+    return Promise.all(liste.map((d) => this.enrichirDepot(d)));
+  }
+
+  async ficheDepot(id: number) {
+    const d = await this.depots.findOne({ where: { id, actif: true }, relations: ['site'] });
+    if (!d) throw new NotFoundException({ message: 'Dépôt introuvable.' });
+    const lots = await this.lots.find({
+      where: { depotId: id, actif: true },
+      relations: ['produit'],
+      order: { numero: 'DESC' },
+    });
+    return { ...(await this.enrichirDepot(d)), lots };
   }
 
   async creerDepot(dto: DepotDto) {
     const exist = await this.depots.findOne({ where: { code: dto.code.trim().toUpperCase() } });
     if (exist) throw new BadRequestException({ message: `Le dépôt ${dto.code} existe déjà.` });
-    return this.depots.save(
+    const d = await this.depots.save(
       this.depots.create({
         code: dto.code.trim().toUpperCase(),
         libelle: dto.libelle.trim(),
         type: dto.type?.trim() || 'STOCKAGE',
         siteId: dto.siteId ?? null,
+        capaciteMaxLots: dto.capaciteMaxLots ?? null,
         actif: true,
       }),
     );
+    return this.enrichirDepot(d);
+  }
+
+  async modifierDepot(id: number, dto: Partial<DepotDto>) {
+    const d = await this.depots.findOne({ where: { id } });
+    if (!d || !d.actif) throw new NotFoundException({ message: 'Dépôt introuvable.' });
+    if (dto.code) {
+      const code = dto.code.trim().toUpperCase();
+      const autre = await this.depots.findOne({ where: { code } });
+      if (autre && autre.id !== id) throw new BadRequestException({ message: `Le code ${code} est déjà pris.` });
+      d.code = code;
+    }
+    if (dto.libelle) d.libelle = dto.libelle.trim();
+    if (dto.type) d.type = dto.type.trim();
+    if (dto.siteId !== undefined) d.siteId = dto.siteId ?? null;
+    if (dto.capaciteMaxLots !== undefined) d.capaciteMaxLots = dto.capaciteMaxLots ?? null;
+    await this.depots.save(d);
+    return this.enrichirDepot(d);
+  }
+
+  async supprimerDepot(id: number) {
+    const d = await this.depots.findOne({ where: { id } });
+    if (!d) throw new NotFoundException({ message: 'Dépôt introuvable.' });
+    const nb = await this.compterLots(id);
+    if (nb > 0) {
+      throw new BadRequestException({ message: `Impossible de supprimer : ${nb} lot(s) encore dans cette zone.` });
+    }
+    d.actif = false;
+    await this.depots.save(d);
+    return { ok: true };
+  }
+
+  private async garantirPlace(depot: Depot, extra = 1) {
+    if (depot.capaciteMaxLots == null) return;
+    const occupes = await this.compterLots(depot.id);
+    if (occupes + extra > depot.capaciteMaxLots) {
+      throw new BadRequestException({
+        message: `Le dépôt ${depot.libelle} est plein (${occupes}/${depot.capaciteMaxLots} lots).`,
+      });
+    }
   }
 
   async listerLots(siteId?: number | null) {
@@ -153,6 +231,7 @@ export class DepotController {
     if (dto.poidsBrut <= 0) throw new BadRequestException({ message: 'Le poids brut doit être positif.' });
     const depot = await this.depots.findOne({ where: { id: dto.depotId } });
     if (!depot || !depot.actif) throw new NotFoundException({ message: 'Dépôt introuvable.' });
+    await this.garantirPlace(depot);
     const produit = await this.produits.findOne({ where: { id: dto.produitId } });
     if (!produit || produit.typeProduit !== TypeProduit.MATIERE_PREMIERE) {
       throw new BadRequestException({ message: 'Choisissez une matière première.' });
@@ -198,6 +277,7 @@ export class DepotController {
   async transferer(lotId: number, dto: TransfertDto, user: UserCtx) {
     const dest = await this.depots.findOne({ where: { id: dto.depotDestinationId } });
     if (!dest || !dest.actif) throw new NotFoundException({ message: 'Dépôt de destination introuvable.' });
+    await this.garantirPlace(dest);
     return this.ds.transaction(async (m) => {
       const lot = await m.findOne(LotDepot, { where: { id: lotId }, relations: ['depot', 'produit'] });
       if (!lot || !lot.actif) throw new NotFoundException({ message: 'Lot introuvable.' });
@@ -228,7 +308,7 @@ export class DepotController {
 
   async listerAchats() {
     return this.achats.find({
-      relations: ['produit', 'demandeur'],
+      relations: ['produit', 'demandeur', 'fournisseur'],
       order: { createdAt: 'DESC' },
       take: 150,
     });
@@ -283,6 +363,52 @@ export class DepotController {
     da.valideurId = user.id;
     da.dateDecision = new Date();
     return this.achats.save(da);
+  }
+
+  async commanderAchat(id: number, dto: CommanderDto, user: UserCtx) {
+    const da = await this.achats.findOne({ where: { id }, relations: ['produit'] });
+    if (!da) throw new NotFoundException({ message: 'Demande d’achat introuvable.' });
+    if (da.statut === 'REJETEE') throw new BadRequestException({ message: 'Cette demande a été rejetée.' });
+    if (da.statut === 'COMMANDEE' && da.emailEnvoye) {
+      throw new BadRequestException({ message: 'La commande a déjà été envoyée au fournisseur.' });
+    }
+    const fourn = await this.ds.getRepository(Fournisseur).findOne({ where: { id: dto.fournisseurId, actif: true } });
+    if (!fourn) throw new NotFoundException({ message: 'Fournisseur introuvable.' });
+    if (!fourn.email) {
+      throw new BadRequestException({ message: `Le fournisseur ${fourn.raisonSociale} n’a pas d’e-mail.` });
+    }
+    if (da.statut === 'EN_ATTENTE') {
+      da.statut = 'VALIDEE';
+      da.valideurId = user.id;
+      da.dateDecision = new Date();
+    }
+    const qte = da.quantite ?? 'à confirmer';
+    const matiere = da.produit ? `${da.produit.refProduit} — ${da.produit.designation}` : da.libelle;
+    const mail = await envoyerEmail({
+      to: fourn.email,
+      subject: `Commande matière première ${da.numero} — ManuPro`,
+      text: [
+        `Bonjour ${fourn.raisonSociale},`,
+        ``,
+        `Nous vous passons commande de matière première :`,
+        `Référence demande : ${da.numero}`,
+        `Matière : ${matiere}`,
+        `Quantité : ${qte}`,
+        da.motif ? `Motif : ${da.motif}` : '',
+        ``,
+        `Merci de confirmer le délai de livraison.`,
+        `ManuPro — Direction des achats`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    });
+    da.fournisseurId = fourn.id;
+    da.statut = 'COMMANDEE';
+    da.emailEnvoye = mail.envoye;
+    da.emailErreur = mail.envoye ? null : mail.raison ?? null;
+    da.valideurId = user.id;
+    await this.achats.save(da);
+    return this.achats.findOne({ where: { id: da.id }, relations: ['produit', 'demandeur', 'fournisseur'] });
   }
 
   private async entrerLot(

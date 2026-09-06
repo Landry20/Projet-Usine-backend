@@ -99,11 +99,15 @@ export class ProductionController {
     const perms = user.permissions ?? [];
     const admin = user.roleCode === 'ADMIN';
     const peutProd = admin || perms.includes(PERMISSIONS.PRODUCTION_GERER);
+    const peutDepot = admin || perms.includes(PERMISSIONS.DEPOT_GERER);
     const peutPf = admin || perms.includes(PERMISSIONS.PF_GERER);
     if (dto.typeProduit === TypeProduit.PRODUIT_FINI && !peutPf && !peutProd) {
       throw new BadRequestException({ message: 'Création d\'un produit fini non autorisée.' });
     }
-    if (dto.typeProduit !== TypeProduit.PRODUIT_FINI && !peutProd) {
+    if (dto.typeProduit === TypeProduit.MATIERE_PREMIERE && !peutProd && !peutDepot) {
+      throw new BadRequestException({ message: 'Création d\'une matière première non autorisée.' });
+    }
+    if (dto.typeProduit !== TypeProduit.PRODUIT_FINI && dto.typeProduit !== TypeProduit.MATIERE_PREMIERE && !peutProd) {
       throw new BadRequestException({ message: 'Création d\'une matière / semi-fini non autorisée.' });
     }
     return this.produits.save(
@@ -114,6 +118,50 @@ export class ProductionController {
         quantiteStock: '0',
       }),
     );
+  }
+
+  private peutGererProduit(
+    user: { roleCode?: string; permissions?: string[] },
+    type: TypeProduit,
+  ) {
+    const perms = user.permissions ?? [];
+    const admin = user.roleCode === 'ADMIN';
+    if (admin) return true;
+    if (type === TypeProduit.PRODUIT_FINI) return perms.includes(PERMISSIONS.PF_GERER) || perms.includes(PERMISSIONS.PRODUCTION_GERER);
+    if (type === TypeProduit.MATIERE_PREMIERE) {
+      return perms.includes(PERMISSIONS.PRODUCTION_GERER) || perms.includes(PERMISSIONS.DEPOT_GERER);
+    }
+    return perms.includes(PERMISSIONS.PRODUCTION_GERER);
+  }
+
+  async modifierProduit(
+    id: number,
+    dto: Partial<ProduitDto>,
+    user: { roleCode?: string; permissions?: string[] },
+  ) {
+    const p = await this.produits.findOne({ where: { id } });
+    if (!p || !p.actif) throw new NotFoundException({ message: 'Produit introuvable.' });
+    if (!this.peutGererProduit(user, p.typeProduit)) {
+      throw new BadRequestException({ message: 'Modification non autorisée.' });
+    }
+    if (dto.refProduit) p.refProduit = dto.refProduit.toUpperCase();
+    if (dto.designation) p.designation = dto.designation;
+    if (dto.unite) p.unite = dto.unite;
+    if (dto.seuilReappro != null) p.seuilReappro = String(dto.seuilReappro);
+    if (dto.dureeConservationJours !== undefined) p.dureeConservationJours = dto.dureeConservationJours ?? null;
+    return this.produits.save(p);
+  }
+
+  async supprimerProduit(id: number, user: { roleCode?: string; permissions?: string[] }) {
+    const p = await this.produits.findOne({ where: { id } });
+    if (!p) throw new NotFoundException({ message: 'Produit introuvable.' });
+    if (!this.peutGererProduit(user, p.typeProduit)) {
+      throw new BadRequestException({ message: 'Suppression non autorisée.' });
+    }
+    p.actif = false;
+    await this.produits.save(p);
+    await this.produits.softRemove(p);
+    return { ok: true };
   }
 
   lignesListe() {

@@ -8,7 +8,8 @@
     "start:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:prod": "node dist/main.js",
     "build": "npx tsc -p tsconfig.json",
-    "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts"
+    "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
+    "vider": "ts-node -r tsconfig-paths/register src/database/vider-sauf-admin.ts"
   },
   "dependencies": {
     "argon2": "^0.41.1",
@@ -25,6 +26,7 @@
     "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.2",
+    "nodemailer": "^6.10.1",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.21",
@@ -39,6 +41,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.13.14",
+    "@types/nodemailer": "^6.4.17",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.2"

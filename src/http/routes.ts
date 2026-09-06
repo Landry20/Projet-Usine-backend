@@ -147,7 +147,7 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.get('/categories-articles', jwt, exigerPermissions(P.REFERENTIEL_LIRE), asyncRoute(() => refs.cats()));
   api.post('/categories-articles', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => refs.creerCat(req.body)));
   api.get('/fournisseurs', jwt, exigerUnePermission(P.REFERENTIEL_LIRE, P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE), asyncRoute(() => refs.fourns()));
-  api.post('/fournisseurs', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => refs.creerFourn(req.body)));
+  api.post('/fournisseurs', jwt, exigerUnePermission(P.REFERENTIEL_GERER, P.ACHAT_VALIDER, P.DIRECTION_LIRE), asyncRoute((req) => refs.creerFourn(req.body)));
   api.get('/parametres', jwt, asyncRoute(() => refs.parametres()));
   api.patch('/parametres/:cle', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => refs.majParam(String(req.params.cle), req.body.valeur)));
   api.get('/champs-personnalises', jwt, exigerPermissions(P.REFERENTIEL_LIRE), asyncRoute(() => refs.champsListe()));
@@ -195,8 +195,10 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.post('/demandes-pieces/:id/valider', jwt, asyncRoute((req) => stock.valider(id(req), u(req))));
   api.post('/demandes-pieces/:id/refuser', jwt, asyncRoute((req) => (stock.refuser as Function)(id(req), req.body, u(req))));
 
-  api.get('/produits', jwt, exigerUnePermission(P.PRODUCTION_LIRE, P.PF_LIRE), asyncRoute((req) => prod.listerProduits(req.query as never)));
+  api.get('/produits', jwt, exigerUnePermission(P.PRODUCTION_LIRE, P.PF_LIRE, P.DEPOT_LIRE), asyncRoute((req) => prod.listerProduits(req.query as never)));
   api.post('/produits', jwt, asyncRoute((req) => prod.creerProduit(req.body, u(req))));
+  api.patch('/produits/:id', jwt, asyncRoute((req) => prod.modifierProduit(id(req), req.body, u(req))));
+  api.delete('/produits/:id', jwt, asyncRoute((req) => prod.supprimerProduit(id(req), u(req))));
   api.get('/lignes-production', jwt, exigerPermissions(P.PRODUCTION_LIRE), asyncRoute(() => prod.lignesListe()));
   api.post('/lignes-production', jwt, exigerPermissions(P.PRODUCTION_GERER), asyncRoute((req) => prod.creerLigne(req.body)));
   api.get('/nomenclatures', jwt, exigerPermissions(P.PRODUCTION_LIRE), asyncRoute(() => prod.noms()));
@@ -214,6 +216,9 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.get('/dashboard/produits-finis', jwt, asyncRoute(() => prod.dashPf()));
   api.get('/depots', jwt, exigerUnePermission(P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE), asyncRoute((req) => depot.listerDepots(usineId(req))));
   api.post('/depots', jwt, exigerUnePermission(P.PRODUCTION_GERER, P.DEPOT_GERER, P.QUART_SAISIR), asyncRoute((req) => depot.creerDepot(req.body)));
+  api.get('/depots/:id', jwt, exigerUnePermission(P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE), asyncRoute((req) => depot.ficheDepot(id(req))));
+  api.patch('/depots/:id', jwt, exigerUnePermission(P.PRODUCTION_GERER, P.DEPOT_GERER, P.QUART_SAISIR), asyncRoute((req) => depot.modifierDepot(id(req), req.body)));
+  api.delete('/depots/:id', jwt, exigerUnePermission(P.PRODUCTION_GERER, P.DEPOT_GERER, P.QUART_SAISIR), asyncRoute((req) => depot.supprimerDepot(id(req))));
   api.get('/dashboard/depot', jwt, exigerUnePermission(P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE), asyncRoute((req) => depot.dashboard(usineId(req))));
   api.get('/lots-depot', jwt, exigerUnePermission(P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE), asyncRoute((req) => depot.listerLots(usineId(req))));
   api.post('/lots-depot/:id/transfert', jwt, exigerUnePermission(P.PRODUCTION_GERER, P.DEPOT_GERER, P.QUART_SAISIR), asyncRoute((req) => depot.transferer(id(req), req.body, u(req))));
@@ -224,6 +229,7 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.post('/demandes-achat', jwt, exigerUnePermission(P.ACHAT_CREER, P.PRODUCTION_GERER, P.DEPOT_GERER, P.QUART_SAISIR), asyncRoute((req) => depot.creerAchat(req.body, u(req), usineId(req))));
   api.post('/demandes-achat/:id/valider', jwt, exigerUnePermission(P.ACHAT_VALIDER, P.DIRECTION_LIRE), asyncRoute((req) => depot.validerAchat(id(req), u(req))));
   api.post('/demandes-achat/:id/rejeter', jwt, exigerUnePermission(P.ACHAT_VALIDER, P.DIRECTION_LIRE), asyncRoute((req) => depot.rejeterAchat(id(req), req.body.motif, u(req))));
+  api.post('/demandes-achat/:id/commander', jwt, exigerUnePermission(P.ACHAT_VALIDER, P.DIRECTION_LIRE), asyncRoute((req) => depot.commanderAchat(id(req), req.body, u(req))));
 
   api.get('/tanks', jwt, exigerUnePermission(P.TANK_LIRE, P.QUART_LIRE), asyncRoute(() => tanks.lister()));
   api.get('/tanks/:id', jwt, asyncRoute((req) => tanks.fiche(id(req))));

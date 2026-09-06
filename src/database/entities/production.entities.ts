@@ -37,6 +37,9 @@ export class Depot {
   @JoinColumn({ name: 'site_id' })
   site: Site | null;
 
+  @Column({ type: 'int', name: 'capacite_max_lots', nullable: true })
+  capaciteMaxLots: number | null;
+
   @Column({ type: 'boolean', default: true })
   actif: boolean;
 }
@@ -513,6 +516,19 @@ export class DemandeAchat {
   @ManyToOne(() => Produit, { nullable: true })
   @JoinColumn({ name: 'produit_id' })
   produit: Produit | null;
+
+  @Column({ type: 'int', name: 'fournisseur_id', nullable: true })
+  fournisseurId: number | null;
+
+  @ManyToOne(() => Fournisseur, { nullable: true })
+  @JoinColumn({ name: 'fournisseur_id' })
+  fournisseur: Fournisseur | null;
+
+  @Column({ type: 'boolean', name: 'email_envoye', default: false })
+  emailEnvoye: boolean;
+
+  @Column({ type: 'text', name: 'email_erreur', nullable: true })
+  emailErreur: string | null;
 
   @Column({ type: 'int', name: 'demandeur_id', nullable: true })
   demandeurId: number | null;

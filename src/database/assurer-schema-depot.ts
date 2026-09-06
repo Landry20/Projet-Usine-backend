@@ -82,27 +82,10 @@ export async function assurerSchemaDepot(ds: DataSource) {
   await ajouterColonne(ds, 'arrivage_matiere', 'date_reception', 'DATE NULL');
   await ajouterColonne(ds, 'demande_matiere', 'lot_depot_id', 'INT NULL');
   await ajouterColonne(ds, 'journal_sortie', 'stock_applique', 'BOOLEAN NOT NULL DEFAULT FALSE');
-
-  await ds.query(`
-    INSERT INTO depot (code, libelle, type)
-    SELECT 'REC', 'Dépôt de réception', 'RECEPTION'
-    WHERE NOT EXISTS (SELECT 1 FROM depot WHERE code = 'REC')
-  `);
-  await ds.query(`
-    INSERT INTO depot (code, libelle, type)
-    SELECT 'PROD', 'Dépôt de production', 'PRODUCTION'
-    WHERE NOT EXISTS (SELECT 1 FROM depot WHERE code = 'PROD')
-  `);
-  await ds.query(`
-    INSERT INTO depot (code, libelle, type)
-    SELECT 'CENT', 'Magasin central', 'CENTRAL'
-    WHERE NOT EXISTS (SELECT 1 FROM depot WHERE code = 'CENT')
-  `);
-  await ds.query(`
-    INSERT INTO depot (code, libelle, type)
-    SELECT 'BRUT', 'Zone brute', 'BRUTE'
-    WHERE NOT EXISTS (SELECT 1 FROM depot WHERE code = 'BRUT')
-  `);
+  await ajouterColonne(ds, 'depot', 'capacite_max_lots', 'INT NULL');
+  await ajouterColonne(ds, 'demande_achat', 'fournisseur_id', 'INT NULL');
+  await ajouterColonne(ds, 'demande_achat', 'email_envoye', 'BOOLEAN NOT NULL DEFAULT FALSE');
+  await ajouterColonne(ds, 'demande_achat', 'email_erreur', 'TEXT NULL');
 
   await ds.query(`
     CREATE TABLE IF NOT EXISTS jaugeage (
