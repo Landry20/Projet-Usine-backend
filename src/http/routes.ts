@@ -147,8 +147,9 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.post('/familles', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => refs.creerFamille(req.body)));
   api.get('/categories-articles', jwt, exigerPermissions(P.REFERENTIEL_LIRE), asyncRoute(() => refs.cats()));
   api.post('/categories-articles', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => refs.creerCat(req.body)));
-  api.get('/fournisseurs', jwt, exigerUnePermission(P.REFERENTIEL_LIRE, P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE), asyncRoute(() => refs.fourns()));
+  api.get('/fournisseurs', jwt, exigerUnePermission(P.REFERENTIEL_LIRE, P.PRODUCTION_LIRE, P.DEPOT_LIRE, P.QUART_LIRE, P.DIRECTION_LIRE, P.ACHAT_VALIDER), asyncRoute(() => refs.fourns()));
   api.post('/fournisseurs', jwt, exigerUnePermission(P.REFERENTIEL_GERER, P.ACHAT_VALIDER, P.DIRECTION_LIRE), asyncRoute((req) => refs.creerFourn(req.body)));
+  api.patch('/fournisseurs/:id', jwt, exigerUnePermission(P.REFERENTIEL_GERER, P.ACHAT_VALIDER, P.DIRECTION_LIRE), asyncRoute((req) => refs.modifierFourn(id(req), req.body)));
   api.get('/parametres', jwt, asyncRoute(() => refs.parametres()));
   api.patch('/parametres/:cle', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => refs.majParam(String(req.params.cle), req.body.valeur)));
   api.get('/champs-personnalises', jwt, exigerPermissions(P.REFERENTIEL_LIRE), asyncRoute(() => refs.champsListe()));

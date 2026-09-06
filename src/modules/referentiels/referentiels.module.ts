@@ -88,6 +88,14 @@ export class ReferentielsController {
     return this.fournisseurs.save(this.fournisseurs.create({ ...dto, code: dto.code.toUpperCase() }));
   }
 
+  async modifierFourn(id: number, dto: Partial<FournisseurDto> & { actif?: boolean }) {
+    const actuel = await this.fournisseurs.findOne({ where: { id } });
+    if (!actuel) return null;
+    if (dto.code) dto.code = dto.code.toUpperCase();
+    await this.fournisseurs.update({ id }, dto);
+    return this.fournisseurs.findOne({ where: { id } });
+  }
+
   parametres() {
     return this.params.find();
   }
