@@ -99,6 +99,9 @@ export class Utilisateur {
   @Column({ type: 'int', name: 'site_id', nullable: true })
   siteId: number | null;
 
+  @Column({ type: 'simple-json', name: 'compartiments', nullable: true })
+  compartiments: string[] | null;
+
   @ManyToOne(() => Site, { nullable: true })
   @JoinColumn({ name: 'site_id' })
   site: Site | null;

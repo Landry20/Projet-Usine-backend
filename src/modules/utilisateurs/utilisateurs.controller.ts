@@ -1,27 +1,29 @@
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CreerUtilisateurDto, ModifierUtilisateurDto, UtilisateursService } from './utilisateurs.service';
 
+type Acteur = { id: number; roleCode?: string; siteId?: number | null };
+
 export class UtilisateursController {
   constructor(private readonly svc: UtilisateursService) {}
 
-  lister(q: PaginationDto) {
-    return this.svc.lister(q);
+  lister(q: PaginationDto, acteur: Acteur, usineId?: number | null) {
+    return this.svc.lister(q, acteur, usineId);
   }
 
-  creer(dto: CreerUtilisateurDto) {
-    return this.svc.creer(dto);
+  creer(dto: CreerUtilisateurDto, acteur: Acteur, usineId?: number | null) {
+    return this.svc.creer(dto, acteur, usineId);
   }
 
   trouver(id: number) {
     return this.svc.trouver(id);
   }
 
-  modifier(id: number, dto: ModifierUtilisateurDto) {
-    return this.svc.modifier(id, dto);
+  modifier(id: number, dto: ModifierUtilisateurDto, acteur: Acteur) {
+    return this.svc.modifier(id, dto, acteur);
   }
 
-  desactiver(id: number) {
-    return this.svc.desactiver(id);
+  desactiver(id: number, acteur: Acteur) {
+    return this.svc.desactiver(id, acteur);
   }
 
   roles() {

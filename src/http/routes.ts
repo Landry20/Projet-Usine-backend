@@ -54,7 +54,7 @@ export function monterRoutes(app: Express, ds: DataSource) {
   const r = ds.getRepository.bind(ds);
   const auth = new AuthController(new AuthService(r(E.Utilisateur), r(E.RefreshToken), r(E.JournalAudit)));
   const users = new UtilisateursController(new UtilisateursService(r(E.Utilisateur), r(E.Role), r(E.Permission)));
-  const sites = new SitesController(r(E.Site), r(E.Localisation));
+  const sites = new SitesController(r(E.Site), r(E.Localisation), r(E.Utilisateur));
   const refs = new ReferentielsController(
     r(E.Specialite), r(E.CauseDefaillance), r(E.FamilleEquipement), r(E.CategorieArticle),
     r(E.Fournisseur), r(E.Parametre), r(E.ChampPersonnalise),
@@ -128,11 +128,12 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.post('/auth/logout', jwt, asyncRoute((req) => auth.deconnexion(req.body, u(req), req)));
   api.get('/auth/me', jwt, asyncRoute((req) => auth.moi(u(req))));
   api.patch('/auth/profil', jwt, asyncRoute((req) => auth.majProfil(u(req), req.body)));
+  api.patch('/auth/site', jwt, asyncRoute((req) => auth.choisirSite(u(req), req.body.siteId ?? null)));
   api.post('/auth/changer-mot-de-passe', jwt, asyncRoute((req) => auth.changer(u(req), req.body)));
 
   api.get('/usines', jwt, asyncRoute(() => sites.lister()));
   api.get('/sites', jwt, exigerPermissions(P.REFERENTIEL_LIRE), asyncRoute(() => sites.lister()));
-  api.post('/sites', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => sites.creer(req.body)));
+  api.post('/sites', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => sites.creer(req.body, u(req))));
   api.patch('/sites/:id', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => sites.modifier(id(req), req.body)));
   api.get('/localisations', jwt, exigerPermissions(P.REFERENTIEL_LIRE), asyncRoute(() => sites.listerLoc()));
   api.post('/localisations', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => sites.creerLoc(req.body)));
@@ -288,12 +289,12 @@ export function monterRoutes(app: Express, ds: DataSource) {
   api.post('/techniciens', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => techs.creer(req.body)));
   api.patch('/techniciens/:id', jwt, exigerPermissions(P.REFERENTIEL_GERER), asyncRoute((req) => techs.modifier(id(req), req.body)));
 
-  api.get('/utilisateurs', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute((req) => users.lister(req.query as never)));
-  api.post('/utilisateurs', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute((req) => users.creer(req.body)));
-  api.get('/utilisateurs/:id', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute((req) => users.trouver(id(req))));
-  api.patch('/utilisateurs/:id', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute((req) => users.modifier(id(req), req.body)));
-  api.delete('/utilisateurs/:id', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute((req) => users.desactiver(id(req))));
-  api.get('/roles', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute(() => users.roles()));
+  api.get('/utilisateurs', jwt, exigerUnePermission(P.UTILISATEUR_GERER, P.DIRECTION_LIRE), asyncRoute((req) => users.lister(req.query as never, u(req), usineId(req))));
+  api.post('/utilisateurs', jwt, exigerUnePermission(P.UTILISATEUR_GERER, P.DIRECTION_LIRE), asyncRoute((req) => users.creer(req.body, u(req), usineId(req))));
+  api.get('/utilisateurs/:id', jwt, exigerUnePermission(P.UTILISATEUR_GERER, P.DIRECTION_LIRE), asyncRoute((req) => users.trouver(id(req))));
+  api.patch('/utilisateurs/:id', jwt, exigerUnePermission(P.UTILISATEUR_GERER, P.DIRECTION_LIRE), asyncRoute((req) => users.modifier(id(req), req.body, u(req))));
+  api.delete('/utilisateurs/:id', jwt, exigerUnePermission(P.UTILISATEUR_GERER, P.DIRECTION_LIRE), asyncRoute((req) => users.desactiver(id(req), u(req))));
+  api.get('/roles', jwt, exigerUnePermission(P.UTILISATEUR_GERER, P.DIRECTION_LIRE), asyncRoute(() => users.roles()));
   api.get('/permissions', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute(() => users.permissions()));
   api.patch('/roles/:id/permissions', jwt, exigerPermissions(P.UTILISATEUR_GERER), asyncRoute((req) => users.majPerms(id(req), req.body.permissionIds)));
 

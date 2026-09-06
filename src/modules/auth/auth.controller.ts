@@ -30,6 +30,10 @@ export class AuthController {
     return this.auth.mettreAJourProfil(user.id, dto);
   }
 
+  choisirSite(user: { id: number }, siteId: number | null) {
+    return this.auth.choisirSite(user.id, siteId);
+  }
+
   changer(user: { id: number }, dto: ChangerMotDePasseDto) {
     return this.auth.changerMotDePasse(user.id, dto);
   }

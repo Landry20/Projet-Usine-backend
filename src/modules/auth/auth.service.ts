@@ -10,7 +10,7 @@ import {
   verifierMotDePasse,
 } from '../../common/utils/crypto.util';
 import { extraireIp } from '../../common/utils/numero.util';
-import { compartimentsDuRole } from '../../common/constants/enums';
+import { resoudreCompartiments } from '../../common/constants/enums';
 import { ChangerMotDePasseDto, ConnexionDto, ProfilDto } from './auth.dto';
 
 export class AuthService {
@@ -44,6 +44,7 @@ export class AuthService {
       .addSelect('u.motDePasse')
       .leftJoinAndSelect('u.role', 'role')
       .leftJoinAndSelect('role.permissions', 'perm')
+      .leftJoinAndSelect('u.site', 'site')
       .where('u.email = :email', { email: dto.email.toLowerCase().trim() })
       .andWhere('u.deletedAt IS NULL')
       .getOne();
@@ -190,10 +191,22 @@ export class AuthService {
         ? { id: user.role.id, code: user.role.code, libelle: user.role.libelle }
         : null,
       siteId: user.siteId,
+      site: user.site ? { id: user.site.id, code: user.site.code, libelle: user.site.libelle } : null,
       doitChangerMdp: user.doitChangerMdp,
       permissions: (user.role?.permissions ?? []).map((p) => p.code),
-      compartiments: compartimentsDuRole(user.role?.code),
+      compartiments: resoudreCompartiments({ roleCode: user.role?.code, compartiments: user.compartiments }),
     };
+  }
+
+  async choisirSite(utilisateurId: number, siteId: number | null) {
+    const user = await this.users.findOne({ where: { id: utilisateurId }, relations: ['role'] });
+    if (!user) throw new UnauthorizedException();
+    if (!['ADMIN', 'DIRECTION_GENERALE'].includes(user.role?.code ?? '')) {
+      throw new ForbiddenException({ message: 'Vous ne pouvez pas changer d’usine.' });
+    }
+    user.siteId = siteId;
+    await this.users.save(user);
+    return this.profil(utilisateurId);
   }
 
   private async journaliser(utilisateurId: number | null, action: string, ip: string) {

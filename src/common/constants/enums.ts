@@ -258,6 +258,18 @@ const TOUS_COMPARTIMENTS = [
   Compartiment.DIRECTION,
 ];
 
+export function resoudreCompartiments(opts: {
+  roleCode?: string;
+  compartiments?: string[] | null;
+}): Compartiment[] {
+  if (opts.roleCode === CodeRole.ADMIN) return TOUS_COMPARTIMENTS;
+  if (Array.isArray(opts.compartiments) && opts.compartiments.length > 0) {
+    const ok = new Set(TOUS_COMPARTIMENTS as string[]);
+    return opts.compartiments.filter((c) => ok.has(c)) as Compartiment[];
+  }
+  return compartimentsDuRole(opts.roleCode);
+}
+
 /** Quel rôle ouvre quels compartiments. ADMIN et direction voient tout. */
 export function compartimentsDuRole(code?: string): Compartiment[] {
   switch (code) {

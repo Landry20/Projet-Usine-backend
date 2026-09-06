@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { DataSource } from 'typeorm';
-import { compartimentsDuRole } from '../common/constants/enums';
+import { resoudreCompartiments } from '../common/constants/enums';
 import { Utilisateur } from '../database/entities';
 
 export type UtilisateurReq = {
@@ -38,7 +38,10 @@ export function middlewareJwt(ds: DataSource) {
         email: user.email,
         roleCode: user.role?.code,
         permissions: (user.role?.permissions ?? []).map((p) => p.code),
-        compartiments: compartimentsDuRole(user.role?.code) as unknown as string[],
+        compartiments: resoudreCompartiments({
+          roleCode: user.role?.code,
+          compartiments: user.compartiments,
+        }) as unknown as string[],
         siteId: user.siteId ?? null,
       };
       next();

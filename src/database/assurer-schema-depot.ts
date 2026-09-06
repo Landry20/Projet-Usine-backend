@@ -86,6 +86,7 @@ export async function assurerSchemaDepot(ds: DataSource) {
   await ajouterColonne(ds, 'demande_achat', 'fournisseur_id', 'INT NULL');
   await ajouterColonne(ds, 'demande_achat', 'email_envoye', 'BOOLEAN NOT NULL DEFAULT FALSE');
   await ajouterColonne(ds, 'demande_achat', 'email_erreur', 'TEXT NULL');
+  await ajouterColonne(ds, 'utilisateur', 'compartiments', 'TEXT NULL');
 
   await ds.query(`
     CREATE TABLE IF NOT EXISTS jaugeage (
